@@ -7,6 +7,7 @@
 ![React](https://img.shields.io/badge/React-18%20%2B%20TypeScript-61DAFB?logo=react&logoColor=black)
 ![SQLite](https://img.shields.io/badge/SQLite-Pure%20Go%20Zero--CGO-003B57?logo=sqlite&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)
+![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)
 
 ---
 
@@ -111,8 +112,12 @@ Remove-Item -Force wails_windows_amd64.syso
 
 ---
 
-## 🎨 版权与素材声明
+## 📄 开源协议与版权声明
 
-- 本项目界面中所使用的猫娘角色立绘、头像、贴纸及图标等美术元素，均取材并二次裁剪自知名画师 **甘城なつき（Amashiro Natsuki / Nachoneko）** 的原创作品，**其完整角色与插画著作权均归原作者 甘城なつき 所有**。
+### 开源协议（源代码）
+- 本项目源代码基于 **[GNU General Public License v3.0 (GPL-3.0)](LICENSE)** 协议开源，欢迎遵循 GPL-3.0 协议进行学习、修改与二次分发。
+
+### 猫娘美术素材版权声明
+- 本项目界面中所使用的猫娘角色立绘、头像、贴纸及图标等美术元素，均取材并二次裁剪自知名画师 **甘城なつき（Amashiro Natsuki / Nachoneko）** 的原创作品，**其完整角色与插画著作权均归原作者 甘城なつき 所有**，不适用上述 GPL-3.0 代码开源协议。
 - 本项目为开源非商业性质的个人效率工具，上述猫娘视觉元素仅用于个人学习、界面美化演示与非商业技术交流，**严禁将本项目中的相关美术素材用于任何商业用途或二次售卖**。
 - 如原作者或版权方认为本项目对相关素材的使用存在任何不妥之处，请随时通过 GitHub Issue 联系，我们将在收到通知后第一时间下架并替换相关图片素材。
