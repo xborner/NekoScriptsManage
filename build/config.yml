@@ -1,0 +1,41 @@
+version: '3'
+
+info:
+  companyName: "NekoScriptsManage"
+  productName: "NekoScriptsManage"
+  productIdentifier: "com.neko.scriptsmanage"
+  description: "清爽可爱风悬浮快速启动器与本地脚本定时管家"
+  copyright: "(c) 2026 NekoScriptsManage"
+  comments: "Portable Windows Launcher & Script Manager"
+  version: "0.1.0"
+
+dev_mode:
+  root_path: .
+  log_level: warn
+  debounce: 1000
+  ignore:
+    dir:
+      - .git
+      - node_modules
+      - frontend
+      - bin
+      - data
+      - dev_data
+      - assets/raw_neko
+    file:
+      - .DS_Store
+      - .gitignore
+      - .gitkeep
+      - "*_test.go"
+    watched_extension:
+      - "*.go"
+      - "*.sql"
+    git_ignore: true
+  executes:
+    - cmd: wails3 build DEV=true
+      type: blocking
+    - cmd: wails3 task common:dev:frontend
+      type: background
+    - cmd: wails3 task run
+      type: primary
+      exit_policy: shutdown

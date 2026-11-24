@@ -1,0 +1,18 @@
+# Runtime portable data & dev data
+/data/
+/dev_data/
+/bin/
+
+# Raw source illustrations (kept locally, not embedded)
+/assets/raw_neko/
+
+# Frontend build artifacts & dependencies
+/frontend/node_modules/
+/frontend/dist/
+
+# OS & Editor files
+.DS_Store
+Thumbs.db
+*.exe
+*.syso
+*.log

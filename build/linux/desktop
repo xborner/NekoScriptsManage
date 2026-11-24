@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=NekoScriptsManage
+Comment=清爽可爱风悬浮快速启动器与本地脚本定时管家
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/nekoscriptsmanage.exe %u
+Terminal=false
+Type=Application
+Icon=nekoscriptsmanage.exe
+Categories=Utility;
+StartupWMClass=nekoscriptsmanage.exe
+
+ 

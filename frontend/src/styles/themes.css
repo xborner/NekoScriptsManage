@@ -1,0 +1,259 @@
+@import "tailwindcss";
+
+:root,
+[data-theme="sakura"] {
+  --bg-canvas: #faf7f5;
+  --bg-sidebar: #fff4f6;
+  --bg-surface: #ffffff;
+  --bg-elevated: #fff9fa;
+  --bg-pill: #ffeef2;
+  --bg-hover: #ffe5ec;
+  --border-soft: #f5dce3;
+  --border-strong: #f2bccb;
+  --accent: #f47c9b;
+  --accent-soft: #ffe3eb;
+  --accent-hover: #ea6588;
+  --accent-ring: rgba(244, 124, 155, 0.32);
+  --accent-text: #a33252;
+  --text-primary: #3f3539;
+  --text-secondary: #75646b;
+  --text-muted: #a4939a;
+  --shadow-card: 0 6px 20px -6px rgba(244, 124, 155, 0.16), 0 2px 6px -2px rgba(63, 53, 57, 0.04);
+  --shadow-float: 0 10px 28px -6px rgba(244, 124, 155, 0.42);
+  --grad-banner: linear-gradient(135deg, #fff1f5 0%, #ffe6ef 52%, #fef6e8 100%);
+}
+
+[data-theme="mint"] {
+  --bg-canvas: #f4fbf8;
+  --bg-sidebar: #ebfaf3;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f7fdfb;
+  --bg-pill: #dff7ec;
+  --bg-hover: #d2f3e4;
+  --border-soft: #cdeee0;
+  --border-strong: #9fe0c5;
+  --accent: #45b996;
+  --accent-soft: #d7f5e9;
+  --accent-hover: #35a583;
+  --accent-ring: rgba(69, 185, 150, 0.3);
+  --accent-text: #1c6b53;
+  --text-primary: #2e423e;
+  --text-secondary: #5e7872;
+  --text-muted: #8ea6a0;
+  --shadow-card: 0 6px 20px -6px rgba(69, 185, 150, 0.16), 0 2px 6px -2px rgba(46, 66, 62, 0.04);
+  --shadow-float: 0 10px 28px -6px rgba(69, 185, 150, 0.4);
+  --grad-banner: linear-gradient(135deg, #eafaf3 0%, #ddf6ee 52%, #eef8ff 100%);
+}
+
+[data-theme="sky"] {
+  --bg-canvas: #f4f8fc;
+  --bg-sidebar: #edf4fc;
+  --bg-surface: #ffffff;
+  --bg-elevated: #f8fbff;
+  --bg-pill: #e3f0fd;
+  --bg-hover: #d6e9fc;
+  --border-soft: #d2e4f8;
+  --border-strong: #a7cef5;
+  --accent: #5ba4ee;
+  --accent-soft: #dcecfc;
+  --accent-hover: #4492e2;
+  --accent-ring: rgba(91, 164, 238, 0.32);
+  --accent-text: #225c99;
+  --text-primary: #303f52;
+  --text-secondary: #62758c;
+  --text-muted: #93a3b7;
+  --shadow-card: 0 6px 20px -6px rgba(91, 164, 238, 0.17), 0 2px 6px -2px rgba(48, 63, 82, 0.04);
+  --shadow-float: 0 10px 28px -6px rgba(91, 164, 238, 0.42);
+  --grad-banner: linear-gradient(135deg, #ecf5ff 0%, #e1efff 52%, #f4edff 100%);
+}
+
+[data-theme="cream"] {
+  --bg-canvas: #fcfaf4;
+  --bg-sidebar: #fbf5e6;
+  --bg-surface: #ffffff;
+  --bg-elevated: #fffdf8;
+  --bg-pill: #f9eed2;
+  --bg-hover: #f6e4bc;
+  --border-soft: #f0e1be;
+  --border-strong: #e8cb8c;
+  --accent: #e5a93c;
+  --accent-soft: #fbecc9;
+  --accent-hover: #d59728;
+  --accent-ring: rgba(229, 169, 60, 0.34);
+  --accent-text: #865a11;
+  --text-primary: #463b2f;
+  --text-secondary: #7b6c5a;
+  --text-muted: #aa9c8b;
+  --shadow-card: 0 6px 20px -6px rgba(229, 169, 60, 0.18), 0 2px 6px -2px rgba(70, 59, 47, 0.04);
+  --shadow-float: 0 10px 28px -6px rgba(229, 169, 60, 0.42);
+  --grad-banner: linear-gradient(135deg, #fff8e6 0%, #fdf0d0 52%, #fff0f2 100%);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-family: "HarmonyOS Sans SC", "MiSans", "PingFang SC", "Microsoft YaHei UI", "Segoe UI", system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+body.mode-main {
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+}
+
+body.mode-float {
+  background: transparent !important;
+}
+
+/* Wails v3 Frameless window drag regions */
+.wails-drag {
+  --wails-draggable: drag;
+  -webkit-app-region: drag;
+}
+
+.wails-no-drag {
+  --wails-draggable: no-drag;
+  -webkit-app-region: no-drag;
+}
+
+/* Soft slim scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+/* Soft cute micro-animations */
+@keyframes neko-float {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes neko-breathe {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--accent-ring), 0 8px 20px rgba(0, 0, 0, 0.14);
+  }
+  50% {
+    box-shadow: 0 0 0 6px var(--accent-ring), 0 10px 24px rgba(0, 0, 0, 0.18);
+  }
+}
+
+.animate-neko-float {
+  animation: neko-float 3.4s ease-in-out infinite;
+}
+
+.animate-neko-breathe {
+  animation: neko-breathe 2.6s ease-in-out infinite;
+}
+
+.neko-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-card);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.neko-card-hover:hover {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+}
+
+/* File drop zone active feedback from Wails v3 */
+[data-file-drop-target].file-drop-target-active {
+  outline: 2px dashed var(--accent);
+  outline-offset: -6px;
+  background-color: var(--accent-soft) !important;
+}
+
+/* Cute Markdown typography inside NotesDrawer */
+.neko-markdown h1,
+.neko-markdown h2,
+.neko-markdown h3 {
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0.9em 0 0.45em;
+  line-height: 1.35;
+}
+.neko-markdown h1 { font-size: 1.05rem; }
+.neko-markdown h2 { font-size: 0.92rem; border-bottom: 1px solid var(--border-soft); padding-bottom: 4px; }
+.neko-markdown h3 { font-size: 0.82rem; }
+.neko-markdown p { margin: 0.5em 0; color: var(--text-secondary); }
+.neko-markdown ul,
+.neko-markdown ol { margin: 0.45em 0; padding-left: 1.25rem; color: var(--text-secondary); }
+.neko-markdown ul { list-style: disc; }
+.neko-markdown ol { list-style: decimal; }
+.neko-markdown li { margin: 0.25em 0; }
+.neko-markdown code {
+  background: var(--bg-pill);
+  color: var(--accent-text);
+  padding: 1px 6px;
+  border-radius: 6px;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+.neko-markdown pre {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-soft);
+  border-radius: 12px;
+  padding: 10px 12px;
+  overflow-x: auto;
+  margin: 0.6em 0;
+}
+.neko-markdown pre code {
+  background: transparent;
+  padding: 0;
+  color: var(--text-primary);
+  font-weight: 400;
+}
+.neko-markdown table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0.6em 0;
+  font-size: 0.74rem;
+}
+.neko-markdown th,
+.neko-markdown td {
+  border: 1px solid var(--border-soft);
+  padding: 6px 8px;
+  text-align: left;
+}
+.neko-markdown th {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.neko-markdown blockquote {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-elevated);
+  padding: 6px 10px;
+  margin: 0.6em 0;
+  border-radius: 0 10px 10px 0;
+  color: var(--text-secondary);
+}
