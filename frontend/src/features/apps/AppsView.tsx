@@ -11,6 +11,9 @@ import {
   FolderOpen,
   Flame,
   UploadCloud,
+  Grid3X3,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 import nekoGaming from "../../assets/neko/neko-gaming.png";
 import nekoCurious from "../../assets/neko/neko-curious.png";
@@ -18,6 +21,7 @@ import { AppIcon } from "./AppIcon";
 import { AppFormModal } from "./AppFormModal";
 import { CategoryModal } from "./CategoryModal";
 import { NotesDrawer } from "./NotesDrawer";
+import { AppContextMenu } from "./AppContextMenu";
 import * as AppService from "../../../bindings/nekomanage/internal/service/appservice";
 import type {
   AppInput,
@@ -35,6 +39,21 @@ interface AppsViewProps {
 }
 
 type CategoryFilter = "all" | "pinned" | number;
+type ViewMode = "compact" | "card" | "list";
+
+const VIEW_STORAGE_KEY = "neko.apps.viewMode";
+
+function loadInitialViewMode(): ViewMode {
+  try {
+    const saved = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    if (saved === "compact" || saved === "card" || saved === "list") {
+      return saved;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return "compact";
+}
 
 export const AppsView: React.FC<AppsViewProps> = ({
   searchQuery,
@@ -45,6 +64,7 @@ export const AppsView: React.FC<AppsViewProps> = ({
   const [categories, setCategories] = useState<Category[]>([]);
   const [apps, setApps] = useState<AppItem[]>([]);
   const [selectedCat, setSelectedCat] = useState<CategoryFilter>("all");
+  const [viewMode, setViewMode] = useState<ViewMode>(loadInitialViewMode);
   const [selectedIndex, setSelectedIndex] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
@@ -55,7 +75,56 @@ export const AppsView: React.FC<AppsViewProps> = ({
   const [editingCat, setEditingCat] = useState<Category | null>(null);
   const [notesApp, setNotesApp] = useState<AppItem | null>(null);
 
+  // Right-click Maye-style context menu
+  const [ctxMenu, setCtxMenu] = useState<{ app: AppItem; x: number; y: number } | null>(null);
+
+  // Compact view hover detail card
+  const [hoverInfo, setHoverInfo] = useState<{ app: AppItem; rect: DOMRect } | null>(null);
+  const hoverTimerRef = useRef<number | null>(null);
+
   const lastHandledDropId = useRef<number>(0);
+
+  const changeViewMode = (mode: ViewMode) => {
+    setViewMode(mode);
+    setHoverInfo(null);
+    setCtxMenu(null);
+    try {
+      window.localStorage.setItem(VIEW_STORAGE_KEY, mode);
+    } catch {
+      // ignore
+    }
+  };
+
+  const clearHoverTimer = () => {
+    if (hoverTimerRef.current !== null) {
+      window.clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+  };
+
+  const handleTileMouseEnter = (item: AppItem, idx: number, el: HTMLDivElement) => {
+    setSelectedIndex(idx);
+    if (viewMode !== "compact" || ctxMenu) return;
+    clearHoverTimer();
+    const rect = el.getBoundingClientRect();
+    hoverTimerRef.current = window.setTimeout(() => {
+      setHoverInfo({ app: item, rect });
+    }, 180);
+  };
+
+  const handleTileMouseLeave = () => {
+    clearHoverTimer();
+    setHoverInfo(null);
+  };
+
+  const handleOpenContextMenu = (e: React.MouseEvent, item: AppItem, idx: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    clearHoverTimer();
+    setHoverInfo(null);
+    setSelectedIndex(idx);
+    setCtxMenu({ app: item, x: e.clientX, y: e.clientY });
+  };
 
   const loadCategories = useCallback(async () => {
     try {
@@ -90,6 +159,10 @@ export const AppsView: React.FC<AppsViewProps> = ({
   useEffect(() => {
     void loadApps();
   }, [loadApps]);
+
+  useEffect(() => {
+    return () => clearHoverTimer();
+  }, []);
 
   // Listen to async icon extraction completion from Go backend
   useEffect(() => {
@@ -146,7 +219,6 @@ export const AppsView: React.FC<AppsViewProps> = ({
             ? `已以管理员身份启动 ${item.name}`
             : `已启动 ${item.name} 🐾`
         );
-        // Optimistically bump click count
         setApps((prev) =>
           prev.map((a) =>
             a.id === item.id ? { ...a, clickCount: a.clickCount + 1 } : a
@@ -162,13 +234,11 @@ export const AppsView: React.FC<AppsViewProps> = ({
   // Keyboard navigation (Arrow keys + Enter launch + Ctrl+Enter admin launch)
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      // Ignore when modals/drawer are open
-      if (appModalOpen || catModalOpen || notesApp) return;
+      if (appModalOpen || catModalOpen || notesApp || ctxMenu) return;
       if (apps.length === 0) return;
 
       const activeTag = (document.activeElement?.tagName || "").toLowerCase();
-      const inTextarea = activeTag === "textarea";
-      if (inTextarea) return;
+      if (activeTag === "textarea") return;
 
       if (e.key === "ArrowDown" || e.key === "ArrowRight") {
         if (activeTag === "input" && e.key === "ArrowRight") return;
@@ -188,7 +258,7 @@ export const AppsView: React.FC<AppsViewProps> = ({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [apps, selectedIndex, appModalOpen, catModalOpen, notesApp, handleLaunch]);
+  }, [apps, selectedIndex, appModalOpen, catModalOpen, notesApp, ctxMenu, handleLaunch]);
 
   const handleSaveApp = async (input: AppInput) => {
     try {
@@ -198,6 +268,43 @@ export const AppsView: React.FC<AppsViewProps> = ({
     } catch (err) {
       onToast("error", String(err));
       throw err;
+    }
+  };
+
+  const handleMoveCategory = async (item: AppItem, nextCategoryId: number | null) => {
+    try {
+      await AppService.SaveApp({
+        id: item.id,
+        categoryId: nextCategoryId,
+        name: item.name,
+        targetPath: item.targetPath,
+        arguments: item.arguments,
+        workingDir: item.workingDir,
+        iconType: item.iconType,
+        iconValue: item.iconValue,
+        runAsAdmin: item.runAsAdmin,
+        tags: item.tags,
+        notesMd: item.notesMd,
+        isPinned: item.isPinned,
+        sortOrder: item.sortOrder,
+      });
+      const catName =
+        nextCategoryId === null
+          ? "未分类"
+          : categories.find((c) => c.id === nextCategoryId)?.name || "目标分类";
+      onToast("success", `已将「${item.name}」移动至 ${catName}`);
+      await Promise.all([loadApps(), loadCategories()]);
+    } catch (err) {
+      onToast("error", `移动分类失败: ${String(err)}`);
+    }
+  };
+
+  const handleCopyPath = async (item: AppItem) => {
+    try {
+      await navigator.clipboard.writeText(item.targetPath);
+      onToast("success", "已复制目标路径到剪贴板");
+    } catch {
+      onToast("error", "复制路径失败");
     }
   };
 
@@ -271,7 +378,7 @@ export const AppsView: React.FC<AppsViewProps> = ({
       data-file-drop-target=""
       className="flex h-full flex-col gap-3 rounded-2xl transition-all"
     >
-      {/* Top Category Pills & Actions */}
+      {/* Top Category Pills + View Switcher + Add CTA */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           <CategoryPill
@@ -337,22 +444,59 @@ export const AppsView: React.FC<AppsViewProps> = ({
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingApp(null);
-            setAppModalOpen(true);
-          }}
-          className="inline-flex h-8 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95"
-          style={{ background: "var(--accent)" }}
-        >
-          <Plus className="h-3.5 w-3.5" />
-          添加应用
-        </button>
+        {/* Right Controls: View Switcher + Add App */}
+        <div className="flex items-center gap-2">
+          <div
+            className="inline-flex h-8 items-center rounded-xl border p-0.5"
+            style={{
+              background: "var(--bg-surface)",
+              borderColor: "var(--border-soft)",
+            }}
+            title="切换视图模式（简约 / 卡片 / 列表）"
+          >
+            <ViewToggleButton
+              active={viewMode === "compact"}
+              icon={<Grid3X3 className="h-3.5 w-3.5" />}
+              label="简约"
+              onClick={() => changeViewMode("compact")}
+            />
+            <ViewToggleButton
+              active={viewMode === "card"}
+              icon={<LayoutGrid className="h-3.5 w-3.5" />}
+              label="卡片"
+              onClick={() => changeViewMode("card")}
+            />
+            <ViewToggleButton
+              active={viewMode === "list"}
+              icon={<List className="h-3.5 w-3.5" />}
+              label="列表"
+              onClick={() => changeViewMode("list")}
+            />
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingApp(null);
+              setAppModalOpen(true);
+            }}
+            className="inline-flex h-8 items-center gap-1.5 rounded-xl px-3.5 text-xs font-semibold text-white shadow-sm transition hover:opacity-90 active:scale-95"
+            style={{ background: "var(--accent)" }}
+          >
+            <Plus className="h-3.5 w-3.5" />
+            添加应用
+          </button>
+        </div>
       </div>
 
-      {/* Main Grid or Empty State */}
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      {/* Main Content Area */}
+      <div
+        className="min-h-0 flex-1 overflow-y-auto pr-1"
+        onScroll={() => {
+          clearHoverTimer();
+          setHoverInfo(null);
+        }}
+      >
         {loading ? (
           <div className="flex h-full items-center justify-center text-xs" style={{ color: "var(--text-muted)" }}>
             加载应用列表中...
@@ -400,69 +544,266 @@ export const AppsView: React.FC<AppsViewProps> = ({
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-              {apps.map((item, idx) => {
-                const isSelected = idx === selectedIndex;
-                const hasNotes = Boolean(item.notesMd && item.notesMd.trim());
-                const tagList = (item.tags || "")
-                  .split(/[,，]/)
-                  .map((t) => t.trim())
-                  .filter(Boolean)
-                  .slice(0, 2);
-
-                return (
-                  <div
-                    key={item.id}
-                    onMouseEnter={() => setSelectedIndex(idx)}
-                    onClick={() => void handleLaunch(item, false)}
-                    className="neko-card neko-card-hover group relative flex cursor-pointer flex-col justify-between rounded-2xl p-3.5"
-                    style={{
-                      borderColor: isSelected ? "var(--accent)" : undefined,
-                      boxShadow: isSelected
-                        ? "0 0 0 2px var(--accent-ring), var(--shadow-card)"
-                        : undefined,
-                    }}
-                  >
-                    {/* Top row: Icon + Title + Badges */}
-                    <div className="flex items-start gap-3">
+            {/* 1. COMPACT VIEW (Default - Maye Lite style: only Icon + Name, Hover card, Left-click run, Right-click menu) */}
+            {viewMode === "compact" && (
+              <div className="grid grid-cols-4 gap-2.5 sm:grid-cols-5 lg:grid-cols-6">
+                {apps.map((item, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseEnter={(e) => handleTileMouseEnter(item, idx, e.currentTarget)}
+                      onMouseLeave={handleTileMouseLeave}
+                      onClick={() => void handleLaunch(item, false)}
+                      onContextMenu={(e) => handleOpenContextMenu(e, item, idx)}
+                      className="neko-card neko-card-hover group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl px-2 py-3.5 text-center"
+                      style={{
+                        borderColor: isSelected ? "var(--accent)" : undefined,
+                        boxShadow: isSelected
+                          ? "0 0 0 2px var(--accent-ring), var(--shadow-card)"
+                          : undefined,
+                      }}
+                    >
+                      {/* Subtle pin dot in corner without cluttering minimal layout */}
+                      {item.isPinned && (
+                        <span
+                          className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-amber-400"
+                          title="已置顶"
+                        />
+                      )}
                       <AppIcon
                         iconType={item.iconType}
                         iconValue={item.iconValue}
                         name={item.name}
-                        size="md"
+                        size="lg"
                       />
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1">
-                          <h4
-                            className="truncate text-xs font-bold"
+                      <span
+                        className="w-full truncate px-1 text-[11px] font-semibold leading-tight"
+                        style={{ color: "var(--text-primary)" }}
+                      >
+                        {item.name}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 2. CARD VIEW (Rich macaron detail cards + right-click menu) */}
+            {viewMode === "card" && (
+              <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+                {apps.map((item, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  const hasNotes = Boolean(item.notesMd && item.notesMd.trim());
+                  const tagList = (item.tags || "")
+                    .split(/[,，]/)
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                    .slice(0, 2);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      onClick={() => void handleLaunch(item, false)}
+                      onContextMenu={(e) => handleOpenContextMenu(e, item, idx)}
+                      className="neko-card neko-card-hover group relative flex cursor-pointer flex-col justify-between rounded-2xl p-3.5"
+                      style={{
+                        borderColor: isSelected ? "var(--accent)" : undefined,
+                        boxShadow: isSelected
+                          ? "0 0 0 2px var(--accent-ring), var(--shadow-card)"
+                          : undefined,
+                      }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <AppIcon
+                          iconType={item.iconType}
+                          iconValue={item.iconValue}
+                          name={item.name}
+                          size="md"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-1">
+                            <h4
+                              className="truncate text-xs font-bold"
+                              style={{ color: "var(--text-primary)" }}
+                              title={item.name}
+                            >
+                              {item.name}
+                            </h4>
+                            {item.isPinned && (
+                              <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />
+                            )}
+                            {item.runAsAdmin && (
+                              <span title="默认以管理员身份运行">
+                                <Shield className="h-3 w-3 shrink-0 text-amber-500" />
+                              </span>
+                            )}
+                          </div>
+                          <div
+                            className="mt-0.5 truncate font-mono text-[10px]"
+                            style={{ color: "var(--text-muted)" }}
+                            title={item.targetPath}
+                          >
+                            {item.targetPath}
+                          </div>
+
+                          <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                            {tagList.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold"
+                                style={{
+                                  background: "var(--bg-pill)",
+                                  color: "var(--accent-text)",
+                                }}
+                              >
+                                #{tag}
+                              </span>
+                            ))}
+                            {item.clickCount > 0 && (
+                              <span
+                                className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium"
+                                style={{
+                                  background: "var(--bg-elevated)",
+                                  color: "var(--text-muted)",
+                                }}
+                                title={`累计启动 ${item.clickCount} 次`}
+                              >
+                                <Flame className="h-2.5 w-2.5" style={{ color: "var(--accent)" }} />
+                                {item.clickCount}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        className="mt-2.5 flex items-center justify-between border-t pt-2"
+                        style={{ borderColor: "var(--border-soft)" }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setNotesApp(item)}
+                          className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition hover:opacity-85"
+                          style={{
+                            background: hasNotes ? "var(--accent-soft)" : "var(--bg-elevated)",
+                            color: hasNotes ? "var(--accent-text)" : "var(--text-muted)",
+                          }}
+                          title="查看/编辑 Markdown 使用说明与快捷键备忘"
+                        >
+                          <BookOpen className="h-3 w-3" />
+                          {hasNotes ? "使用说明" : "添加备忘"}
+                        </button>
+
+                        <div className="flex items-center gap-0.5 opacity-75 transition-opacity group-hover:opacity-100">
+                          <button
+                            type="button"
+                            onClick={() => void handleLaunch(item, true)}
+                            title="以管理员身份运行 (Ctrl+Enter)"
+                            className="rounded-lg p-1.5 transition hover:bg-amber-50 hover:text-amber-600"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            <Shield className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleTogglePin(item)}
+                            title={item.isPinned ? "取消置顶" : "置顶应用"}
+                            className="rounded-lg p-1.5 transition hover:opacity-80"
+                            style={{ color: item.isPinned ? "#f59e0b" : "var(--text-muted)" }}
+                          >
+                            <Star className={`h-3.5 w-3.5 ${item.isPinned ? "fill-current" : ""}`} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleOpenFolder(item)}
+                            title="在资源管理器中定位"
+                            className="rounded-lg p-1.5 transition hover:opacity-80"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            <FolderOpen className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingApp(item);
+                              setAppModalOpen(true);
+                            }}
+                            title="编辑快捷方式"
+                            className="rounded-lg p-1.5 transition hover:opacity-80"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => void handleDeleteApp(item)}
+                            title="移除该应用"
+                            className="rounded-lg p-1.5 transition hover:bg-rose-50 hover:text-rose-500"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* 3. LIST VIEW (High-efficiency single-row list + right-click menu) */}
+            {viewMode === "list" && (
+              <div className="flex flex-col gap-1.5">
+                {apps.map((item, idx) => {
+                  const isSelected = idx === selectedIndex;
+                  const hasNotes = Boolean(item.notesMd && item.notesMd.trim());
+                  const tagList = (item.tags || "")
+                    .split(/[,，]/)
+                    .map((t) => t.trim())
+                    .filter(Boolean)
+                    .slice(0, 2);
+
+                  return (
+                    <div
+                      key={item.id}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      onClick={() => void handleLaunch(item, false)}
+                      onContextMenu={(e) => handleOpenContextMenu(e, item, idx)}
+                      className="neko-card group flex cursor-pointer items-center justify-between gap-3 rounded-xl px-3 py-2 transition"
+                      style={{
+                        borderColor: isSelected ? "var(--accent)" : undefined,
+                        boxShadow: isSelected
+                          ? "0 0 0 2px var(--accent-ring), var(--shadow-card)"
+                          : undefined,
+                      }}
+                    >
+                      <div className="flex min-w-0 flex-1 items-center gap-2.5">
+                        <AppIcon
+                          iconType={item.iconType}
+                          iconValue={item.iconValue}
+                          name={item.name}
+                          size="sm"
+                        />
+                        <div className="flex min-w-0 flex-1 items-center gap-2">
+                          <span
+                            className="shrink-0 text-xs font-bold"
                             style={{ color: "var(--text-primary)" }}
-                            title={item.name}
                           >
                             {item.name}
-                          </h4>
+                          </span>
                           {item.isPinned && (
                             <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />
                           )}
                           {item.runAsAdmin && (
-                            <span title="默认以管理员身份运行">
-                              <Shield className="h-3 w-3 shrink-0 text-amber-500" />
-                            </span>
+                            <Shield className="h-3 w-3 shrink-0 text-amber-500" />
                           )}
-                        </div>
-                        <div
-                          className="mt-0.5 truncate font-mono text-[10px]"
-                          style={{ color: "var(--text-muted)" }}
-                          title={item.targetPath}
-                        >
-                          {item.targetPath}
-                        </div>
-
-                        {/* Tags & Click count */}
-                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
                           {tagList.map((tag) => (
                             <span
                               key={tag}
-                              className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold"
+                              className="hidden shrink-0 rounded-md px-1.5 py-0.5 text-[9px] font-semibold sm:inline-block"
                               style={{
                                 background: "var(--bg-pill)",
                                 color: "var(--accent-text)",
@@ -471,70 +812,41 @@ export const AppsView: React.FC<AppsViewProps> = ({
                               #{tag}
                             </span>
                           ))}
-                          {item.clickCount > 0 && (
-                            <span
-                              className="inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[9px] font-medium"
-                              style={{
-                                background: "var(--bg-elevated)",
-                                color: "var(--text-muted)",
-                              }}
-                              title={`累计启动 ${item.clickCount} 次`}
-                            >
-                              <Flame className="h-2.5 w-2.5" style={{ color: "var(--accent)" }} />
-                              {item.clickCount}
-                            </span>
-                          )}
+                          <span
+                            className="min-w-0 flex-1 truncate font-mono text-[10px]"
+                            style={{ color: "var(--text-muted)" }}
+                          >
+                            {item.targetPath}
+                          </span>
                         </div>
                       </div>
-                    </div>
 
-                    {/* Bottom Quick Action Bar */}
-                    <div
-                      className="mt-2.5 flex items-center justify-between border-t pt-2"
-                      style={{ borderColor: "var(--border-soft)" }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => setNotesApp(item)}
-                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-[10px] font-semibold transition hover:opacity-85"
-                        style={{
-                          background: hasNotes ? "var(--accent-soft)" : "var(--bg-elevated)",
-                          color: hasNotes ? "var(--accent-text)" : "var(--text-muted)",
-                        }}
-                        title="查看/编辑 Markdown 使用说明与快捷键备忘"
+                      <div
+                        className="flex shrink-0 items-center gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        <BookOpen className="h-3 w-3" />
-                        {hasNotes ? "使用说明" : "添加备忘"}
-                      </button>
-
-                      <div className="flex items-center gap-0.5 opacity-75 transition-opacity group-hover:opacity-100">
+                        {item.clickCount > 0 && (
+                          <span
+                            className="mr-1 inline-flex items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px]"
+                            style={{
+                              background: "var(--bg-elevated)",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            <Flame className="h-2.5 w-2.5" style={{ color: "var(--accent)" }} />
+                            {item.clickCount}
+                          </span>
+                        )}
                         <button
                           type="button"
-                          onClick={() => void handleLaunch(item, true)}
-                          title="以管理员身份运行 (Ctrl+Enter)"
-                          className="rounded-lg p-1.5 transition hover:bg-amber-50 hover:text-amber-600"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          <Shield className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleTogglePin(item)}
-                          title={item.isPinned ? "取消置顶" : "置顶应用"}
+                          onClick={() => setNotesApp(item)}
+                          title="使用说明与备忘"
                           className="rounded-lg p-1.5 transition hover:opacity-80"
-                          style={{ color: item.isPinned ? "#f59e0b" : "var(--text-muted)" }}
+                          style={{
+                            color: hasNotes ? "var(--accent)" : "var(--text-muted)",
+                          }}
                         >
-                          <Star className={`h-3.5 w-3.5 ${item.isPinned ? "fill-current" : ""}`} />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleOpenFolder(item)}
-                          title="在资源管理器中定位"
-                          className="rounded-lg p-1.5 transition hover:opacity-80"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          <FolderOpen className="h-3.5 w-3.5" />
+                          <BookOpen className="h-3.5 w-3.5" />
                         </button>
                         <button
                           type="button"
@@ -548,36 +860,49 @@ export const AppsView: React.FC<AppsViewProps> = ({
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDeleteApp(item)}
-                          title="移除该应用"
-                          className="rounded-lg p-1.5 transition hover:bg-rose-50 hover:text-rose-500"
-                          style={{ color: "var(--text-muted)" }}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
 
-            {/* Subtle Drag Hint Footer */}
+            {/* Subtle Drag & Interaction Hint Footer */}
             <div
               className="mt-3 flex items-center justify-between rounded-xl px-3 py-1.5 text-[10px]"
               style={{ background: "var(--bg-elevated)", color: "var(--text-muted)" }}
             >
               <span className="inline-flex items-center gap-1.5">
                 <UploadCloud className="h-3.5 w-3.5" style={{ color: "var(--accent)" }} />
-                支持直接将 Windows 上的 .exe / .lnk / 文件夹拖入本窗口快速导入
+                支持拖入 .exe / .lnk / 文件夹快速导入
               </span>
-              <span>↑↓ 切换 · Enter 启动 · Ctrl+Enter 管理员运行</span>
+              <span>左键运行 · 右键菜单 · ↑↓切换 · Ctrl+Enter 管理员</span>
             </div>
           </>
         )}
       </div>
+
+      {/* Compact View Floating Hover Detail Card */}
+      {hoverInfo && !ctxMenu && <CompactHoverCard app={hoverInfo.app} anchor={hoverInfo.rect} />}
+
+      {/* Maye-style Right-Click Context Menu */}
+      <AppContextMenu
+        app={ctxMenu?.app || null}
+        position={ctxMenu ? { x: ctxMenu.x, y: ctxMenu.y } : null}
+        categories={categories}
+        onClose={() => setCtxMenu(null)}
+        onLaunch={(item, admin) => void handleLaunch(item, admin)}
+        onOpenNotes={(item) => setNotesApp(item)}
+        onTogglePin={(item) => void handleTogglePin(item)}
+        onOpenFolder={(item) => void handleOpenFolder(item)}
+        onCopyPath={(item) => void handleCopyPath(item)}
+        onMoveCategory={(item, catId) => void handleMoveCategory(item, catId)}
+        onEdit={(item) => {
+          setEditingApp(item);
+          setAppModalOpen(true);
+        }}
+        onDelete={(item) => void handleDeleteApp(item)}
+      />
 
       {/* Modals & Markdown Notes Drawer */}
       <AppFormModal
@@ -607,6 +932,133 @@ export const AppsView: React.FC<AppsViewProps> = ({
     </div>
   );
 };
+
+interface CompactHoverCardProps {
+  app: AppItem;
+  anchor: DOMRect;
+}
+
+const CompactHoverCard: React.FC<CompactHoverCardProps> = ({ app, anchor }) => {
+  const cardWidth = 264;
+  const estHeight = 148;
+  const pad = 10;
+
+  let left = anchor.left + anchor.width / 2 - cardWidth / 2;
+  if (left < pad) left = pad;
+  if (left + cardWidth > window.innerWidth - pad) {
+    left = window.innerWidth - cardWidth - pad;
+  }
+
+  let top = anchor.bottom + 8;
+  if (top + estHeight > window.innerHeight - pad) {
+    top = Math.max(pad, anchor.top - estHeight - 8);
+  }
+
+  const tags = (app.tags || "")
+    .split(/[,，]/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+    .slice(0, 4);
+
+  const noteSnippet = (app.notesMd || "")
+    .replace(/[#`>*_|[\]]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return (
+    <div
+      style={{
+        left,
+        top,
+        width: cardWidth,
+        background: "var(--bg-surface)",
+        borderColor: "var(--border-strong)",
+        boxShadow: "0 12px 32px -8px rgba(63, 53, 57, 0.2), 0 4px 10px -2px rgba(63, 53, 57, 0.08)",
+      }}
+      className="pointer-events-none fixed z-40 rounded-2xl border p-3 text-left"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-xs font-bold" style={{ color: "var(--text-primary)" }}>
+            {app.name}
+          </span>
+          {app.isPinned && <Star className="h-3 w-3 shrink-0 fill-amber-400 text-amber-400" />}
+          {app.runAsAdmin && <Shield className="h-3 w-3 shrink-0 text-amber-500" />}
+        </div>
+        {app.clickCount > 0 && (
+          <span
+            className="inline-flex shrink-0 items-center gap-0.5 rounded-md px-1.5 py-0.5 text-[10px] font-semibold"
+            style={{ background: "var(--bg-pill)", color: "var(--accent-text)" }}
+          >
+            <Flame className="h-2.5 w-2.5" />
+            {app.clickCount} 次
+          </span>
+        )}
+      </div>
+
+      <div
+        className="mt-1 break-all font-mono text-[10px] leading-snug"
+        style={{ color: "var(--text-muted)" }}
+      >
+        {app.targetPath}
+        {app.arguments ? ` ${app.arguments}` : ""}
+      </div>
+
+      {tags.length > 0 && (
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              className="rounded-md px-1.5 py-0.5 text-[9px] font-semibold"
+              style={{ background: "var(--bg-pill)", color: "var(--accent-text)" }}
+            >
+              #{tag}
+            </span>
+          ))}
+        </div>
+      )}
+
+      {noteSnippet && (
+        <div
+          className="mt-1.5 line-clamp-2 rounded-lg px-2 py-1 text-[10px] leading-relaxed"
+          style={{ background: "var(--bg-elevated)", color: "var(--text-secondary)" }}
+        >
+          📖 {noteSnippet}
+        </div>
+      )}
+
+      <div
+        className="mt-2 flex items-center justify-between border-t pt-1.5 text-[9px]"
+        style={{ borderColor: "var(--border-soft)", color: "var(--text-muted)" }}
+      >
+        <span>左键单击启动</span>
+        <span>右键打开更多操作</span>
+      </div>
+    </div>
+  );
+};
+
+interface ViewToggleButtonProps {
+  active: boolean;
+  icon: React.ReactNode;
+  label: string;
+  onClick: () => void;
+}
+
+const ViewToggleButton: React.FC<ViewToggleButtonProps> = ({ active, icon, label, onClick }) => (
+  <button
+    type="button"
+    onClick={onClick}
+    className="inline-flex h-7 items-center gap-1 rounded-lg px-2 text-[11px] font-semibold transition"
+    style={{
+      background: active ? "var(--accent-soft)" : "transparent",
+      color: active ? "var(--accent-text)" : "var(--text-muted)",
+    }}
+  >
+    {icon}
+    <span>{label}</span>
+  </button>
+);
 
 interface CategoryPillProps {
   active: boolean;

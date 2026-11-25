@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"golang.org/x/sys/windows/registry"
@@ -54,9 +55,12 @@ func IsAutoStartEnabled() bool {
 	return err == nil
 }
 
-// OpenInExplorer opens a directory in Windows Explorer without showing a console flash.
+// OpenInExplorer opens a directory in Windows Explorer.
 func OpenInExplorer(dirPath string) error {
-	cmd := exec.Command("explorer.exe", dirPath)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+	cleaned := filepath.Clean(strings.TrimSpace(dirPath))
+	cmd := exec.Command("explorer.exe")
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CmdLine: fmt.Sprintf(`explorer.exe "%s"`, cleaned),
+	}
 	return cmd.Start()
 }

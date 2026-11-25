@@ -83,16 +83,37 @@ func LaunchTarget(targetPath, arguments, workingDir string, runAsAdmin bool) err
 	return nil
 }
 
-// RevealInExplorer opens Windows Explorer and highlights the target file or folder.
+// RevealInExplorer opens Windows Explorer and highlights the target file or opens the target folder.
+// On Windows, explorer.exe requires `/select,"C:\path\to\file"` with NO space after `/select,`
+// and standard backslashes, passed via raw CmdLine so Go does not re-quote or split the token.
 func RevealInExplorer(targetPath string) error {
 	target := strings.TrimSpace(targetPath)
 	if target == "" {
 		return fmt.Errorf("目标路径为空")
 	}
-	if info, err := os.Stat(target); err == nil && info.IsDir() {
-		return OpenInExplorer(target)
+	lower := strings.ToLower(target)
+	if strings.HasPrefix(lower, "http://") || strings.HasPrefix(lower, "https://") {
+		return fmt.Errorf("网址快捷方式没有本地文件夹")
 	}
-	cmd := exec.Command("explorer.exe", "/select,", target)
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-	return cmd.Start()
+
+	expanded := expandEnvIfNeeded(target)
+	cleaned := filepath.Clean(expanded)
+
+	if info, err := os.Stat(cleaned); err == nil {
+		if info.IsDir() {
+			return OpenInExplorer(cleaned)
+		}
+		cmd := exec.Command("explorer.exe")
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			CmdLine: fmt.Sprintf(`explorer.exe /select,"%s"`, cleaned),
+		}
+		return cmd.Start()
+	}
+
+	// If the target file no longer exists, fall back to opening its parent directory if present.
+	parent := filepath.Dir(cleaned)
+	if info, err := os.Stat(parent); err == nil && info.IsDir() {
+		return OpenInExplorer(parent)
+	}
+	return fmt.Errorf("目标路径不存在: %s", cleaned)
 }
