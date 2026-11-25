@@ -18,10 +18,7 @@
    go test -v ./internal/...
    cd frontend && npm run build
    ```
-3. Commit 信息建议使用清晰简洁的中文（如 `feat: ...`、`fix: ...`、`docs: ...`）；若由 AI 辅助完成，可在提交说明末尾添加协作尾注（避免使用他人已注册的 `@users.noreply.github.com` 邮箱）：
-   ```text
-   Co-authored-by: 北美大豆包 <beimeidadoubao@neko.local>
-   ```
+3. Commit 信息建议使用清晰简洁的中文（如 `feat: ...`、`fix: ...`、`docs: ...`）。
 
 ## 🎨 素材与版权提醒
 
