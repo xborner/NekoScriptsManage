@@ -8,6 +8,7 @@
 ![SQLite](https://img.shields.io/badge/SQLite-Pure%20Go%20Zero--CGO-003B57?logo=sqlite&logoColor=white)
 ![Platform](https://img.shields.io/badge/Platform-Windows%2010%2F11-0078D6?logo=windows&logoColor=white)
 ![License](https://img.shields.io/badge/License-GPL--3.0-blue.svg)
+![AI Assisted](https://img.shields.io/badge/AI%20Assisted-%E5%8C%97%E7%BE%8E%E5%A4%A7%E8%B1%86%E5%8C%85-ff9eb5)
 
 ---
 
@@ -109,6 +110,13 @@ Remove-Item -Force wails_windows_amd64.syso
 - `--silent`：静默启动直接驻留系统托盘（开机自启默认附带此参数）。
 - `--tab=apps|scripts|logs|settings`：启动时直接定位到指定功能页。
 - 环境变量 `NEKO_DATA_DIR`：可选自定义便携数据目录路径。
+
+---
+
+## 🤝 贡献与 AI 辅助开发声明
+
+- **AI 辅助开发声明**：本项目在架构设计、Go/Wails v3 后端与 React 前端编码、自动化测试及文档编写过程中，由 AI 编程助手 **北美大豆包** 提供全程协作辅助开发，并经作者人工审阅、实机运行测试与验收。
+- **参与贡献**：欢迎通过 Issue 反馈问题或提交 Pull Request，详细规范请参阅 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
 ---
 
